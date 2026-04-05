@@ -22,3 +22,12 @@ jobs:
 
       - name: Run tests
         run: uv run pytest
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy gate
+        run: echo "Tests passed, deployment can proceed."

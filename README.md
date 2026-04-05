@@ -190,3 +190,7 @@ query = (Product
 - Wrap bulk inserts in `db.atomic()` for transactional safety and performance.
 - The template uses `teardown_appcontext` for connection cleanup, so connections are closed even when requests fail.
 - Check `.env.example` for all available configuration options.
+
+## Reliability Notes
+
+- Error handling behavior for `404` and `500` responses is documented in [docs/error-handling.md](docs/error-handling.md).

@@ -21,4 +21,9 @@ dependencies = [
 dev = [
     "httpx>=0.28.1",
     "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
 ]
+
+[tool.pytest.ini_options]
+addopts = "--cov=app --cov-report=term-missing --cov-fail-under=50"
+testpaths = ["tests"]
