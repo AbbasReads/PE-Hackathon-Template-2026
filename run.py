@@ -6,6 +6,7 @@ from fastapi import FastAPI, Query, Request
 from fastapi.responses import JSONResponse
 from app import create_app
 from app.database import Base, engine, SessionLocal
+from app.routes import users, urls, events
 from app.models.domain import User, URL, Event
 from app.observability import get_system_metrics, read_recent_logs, setup_logging
 import csv
