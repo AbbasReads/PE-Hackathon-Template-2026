@@ -194,3 +194,4 @@ query = (Product
 ## Reliability Notes
 
 - Error handling behavior for `404` and `500` responses is documented in [docs/error-handling.md](docs/error-handling.md).
+- Failure modes and the chaos restart demo are documented in [docs/failure-modes.md](docs/failure-modes.md).

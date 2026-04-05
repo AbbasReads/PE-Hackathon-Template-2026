@@ -52,3 +52,21 @@ def client(db_session):
         yield test_client
 
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def resilient_client(db_session):
+    app = create_app()
+
+    def override_get_db():
+        try:
+            yield db_session
+        finally:
+            pass
+
+    app.dependency_overrides[get_db] = override_get_db
+
+    with TestClient(app, raise_server_exceptions=False) as test_client:
+        yield test_client
+
+    app.dependency_overrides.clear()
