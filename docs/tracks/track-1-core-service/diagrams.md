@@ -49,9 +49,9 @@ sequenceDiagram
 
 ```mermaid
 erDiagram
-  USERS ||--o{ URLS : owns}
-  USERS ||--o{ EVENTS : generates}
-  URLS ||--o{ EVENTS : records}
+  USERS ||--o{ URLS : owns
+  USERS ||--o{ EVENTS : generates
+  URLS ||--o{ EVENTS : records
 
   USERS {
     int id PK
