@@ -21,14 +21,24 @@ app = create_app()
 log_file_path = setup_logging()
 logger = logging.getLogger("app")
 
+
+def _is_truthy(value: str | None, default: bool = False) -> bool:
+    if value is None:
+        return default
+    return value.lower() in {"1", "true", "yes", "on"}
+
 try:
     from prometheus_fastapi_instrumentator import Instrumentator
-    from prometheus_client import Gauge
-    
-    cpu_usage_gauge = Gauge(
-        "process_cpu_usage_percent",
-        "Current CPU usage percentage of the host",
-    )
+    from prometheus_client import Gauge, REGISTRY
+
+    existing_collector = REGISTRY._names_to_collectors.get("process_cpu_usage_percent")  # type: ignore[attr-defined]
+    if isinstance(existing_collector, Gauge):
+        cpu_usage_gauge = existing_collector
+    else:
+        cpu_usage_gauge = Gauge(
+            "process_cpu_usage_percent",
+            "Current CPU usage percentage of the host",
+        )
     
     Instrumentator(
         should_group_status_codes=False,
@@ -103,11 +113,11 @@ def seed_database() -> None:
                     ))
             db.commit()
 
-        # Sync sequences for PostgreSQL
-        db.execute(text("SELECT setval('users_id_seq', (SELECT MAX(id) FROM users))"))
-        db.execute(text("SELECT setval('urls_id_seq', (SELECT MAX(id) FROM urls))"))
-        db.execute(text("SELECT setval('events_id_seq', (SELECT MAX(id) FROM events))"))
-        db.commit()
+        if engine.dialect.name == "postgresql":
+            db.execute(text("SELECT setval('users_id_seq', COALESCE((SELECT MAX(id) FROM users), 1), true)"))
+            db.execute(text("SELECT setval('urls_id_seq', COALESCE((SELECT MAX(id) FROM urls), 1), true)"))
+            db.execute(text("SELECT setval('events_id_seq', COALESCE((SELECT MAX(id) FROM events), 1), true)"))
+            db.commit()
         logger.info("Database seeded successfully", extra={"component": "seed"})
 
     except (SQLAlchemyError, Exception) as exc:
@@ -116,22 +126,43 @@ def seed_database() -> None:
     finally:
         db.close()
 
+def initialize_database() -> None:
+    Base.metadata.create_all(bind=engine)
+    if _is_truthy(os.getenv("ENABLE_STARTUP_SEED"), default=False):
+        seed_database()
+
+
 @app.on_event("startup")
 def startup() -> None:
+    if not _is_truthy(os.getenv("RUN_DB_INIT_ON_STARTUP"), default=True):
+        return
+
     try:
-        Base.metadata.create_all(bind=engine)
-        if os.getenv("ENABLE_STARTUP_SEED", "false").lower() in {"1", "true", "yes", "on"}:
-            seed_database()
+        initialize_database()
     except Exception as exc:
         logger.exception(
             "Startup database initialization failed",
             extra={"component": "startup", "error": str(exc)},
         )
+        raise
 
 if __name__ == "__main__":
-    uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=int(os.getenv("PORT", "8000")),
-        access_log=False,
-    )
+    host = os.getenv("HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", "8000"))
+    workers = max(1, int(os.getenv("WEB_CONCURRENCY", "1")))
+
+    if workers > 1:
+        uvicorn.run(
+            "run:app",
+            host=host,
+            port=port,
+            access_log=False,
+            workers=workers,
+        )
+    else:
+        uvicorn.run(
+            app,
+            host=host,
+            port=port,
+            access_log=False,
+        )

@@ -27,6 +27,7 @@ def _log_event(
     try:
         db.add(Event(url_id=url_id, user_id=user_id, event_type=event_type, details=details))
         db.commit()
+        invalidate_cache(get_redis_client(), "events:*")
     finally:
         db.close()
 
@@ -101,7 +102,7 @@ def get_urls(
     db: Session = Depends(get_db),
 ):
     redis_client = get_redis_client()
-    cache_key = f"urls:user_id={user_id}:skip={skip}:limit={limit}"
+    cache_key = f"urls:user_id={user_id}:is_active={is_active}:skip={skip}:limit={limit}"
     cached = get_cache(redis_client, cache_key)
     if cached is not None:
         return cached

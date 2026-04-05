@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.domain import Event, URL, User
 from app.models.schemas import EventCreate, EventOut
-from app.cache import get_redis_client, get_cache, set_cache
+from app.cache import get_redis_client, get_cache, invalidate_cache, set_cache
 
 
 router = APIRouter(prefix="/events", tags=["events"])
@@ -28,6 +28,7 @@ def create_event(event: EventCreate, db: Session = Depends(get_db)):
     db.add(db_event)
     db.commit()
     db.refresh(db_event)
+    invalidate_cache(get_redis_client(), "events:*")
     return db_event
 
 
@@ -61,4 +62,3 @@ def get_events(
     
     set_cache(redis_client, cache_key, events_out, ttl=15)
     return events_out
-

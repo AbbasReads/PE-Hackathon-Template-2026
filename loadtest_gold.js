@@ -24,27 +24,51 @@ function randInt(min, max) {
 }
 
 export function setup() {
-    for (let i = 1; i <= USER_COUNT; i++) {
-        http.post(
-            `${BASE_URL}/users`,
-            JSON.stringify({
-                username: `k6-user-${i}`,
-                email: `k6-user-${i}@example.com`,
-            }),
-            { headers: { 'Content-Type': 'application/json' } },
-        );
+    const usersResponse = http.get(`${BASE_URL}/users?page=1&per_page=1`);
+    if (usersResponse.status === 200) {
+        const users = usersResponse.json();
+        const hasUsers = Array.isArray(users)
+            ? users.length > 0
+            : Array.isArray(users?.users)
+                ? users.users.length > 0
+                : false;
+
+        if (!hasUsers) {
+            for (let i = 1; i <= USER_COUNT; i++) {
+                http.post(
+                    `${BASE_URL}/users`,
+                    JSON.stringify({
+                        username: `k6-user-${i}`,
+                        email: `k6-user-${i}@example.com`,
+                    }),
+                    { headers: { 'Content-Type': 'application/json' } },
+                );
+            }
+        }
     }
 
-    for (let i = 1; i <= 100; i++) {
-        http.post(
-            `${BASE_URL}/urls`,
-            JSON.stringify({
-                user_id: randInt(1, USER_COUNT),
-                original_url: `https://example.com/seed-${i}`,
-                title: `Seed URL ${i}`,
-            }),
-            { headers: { 'Content-Type': 'application/json' } },
-        );
+    const urlsResponse = http.get(`${BASE_URL}/urls`);
+    if (urlsResponse.status === 200) {
+        const urls = urlsResponse.json();
+        const urlCount = Array.isArray(urls)
+            ? urls.length
+            : Array.isArray(urls?.urls)
+                ? urls.urls.length
+                : 0;
+
+        if (urlCount < 100) {
+            for (let i = 1; i <= 100; i++) {
+                http.post(
+                    `${BASE_URL}/urls`,
+                    JSON.stringify({
+                        user_id: randInt(1, USER_COUNT),
+                        original_url: `https://example.com/seed-${i}`,
+                        title: `Seed URL ${i}`,
+                    }),
+                    { headers: { 'Content-Type': 'application/json' } },
+                );
+            }
+        }
     }
 }
 
