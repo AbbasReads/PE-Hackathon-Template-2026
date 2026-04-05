@@ -1,0 +1,77 @@
+# ============================================================
+# Full monitoring stack: App + PostgreSQL + Prometheus + Alertmanager
+# Usage:  docker compose up -d
+# UIs:    App → http://localhost:8000
+#         Prometheus → http://localhost:9090
+#         Alertmanager → http://localhost:9093
+# ============================================================
+
+services:
+  # ---------- PostgreSQL ----------
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: hackathon_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ---------- FastAPI App ----------
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: postgres
+      DATABASE_NAME: hackathon_db
+      LOG_LEVEL: INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---------- Prometheus ----------
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=7d"
+    depends_on:
+      - app
+    restart: unless-stopped
+
+  # ---------- Alertmanager ----------
+  alertmanager:
+    image: prom/alertmanager:latest
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./monitoring/alertmanager:/etc/alertmanager:ro
+    environment:
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-http://example.com/slack}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-http://example.com/discord}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - "sed \"s|SLACK_WEBHOOK_URL_PLACEHOLDER|$$SLACK_WEBHOOK_URL|g\" /etc/alertmanager/alertmanager.yml | sed \"s|DISCORD_WEBHOOK_URL_PLACEHOLDER|$$DISCORD_WEBHOOK_URL|g\" > /tmp/am.yml && exec /bin/alertmanager --config.file=/tmp/am.yml"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  prometheus_data:
