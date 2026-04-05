@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: Hackathon Dashboards
+    orgId: 1
+    folder: Hackathon
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards
