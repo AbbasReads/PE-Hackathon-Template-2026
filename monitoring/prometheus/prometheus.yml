@@ -1,0 +1,27 @@
+# Prometheus configuration for URL Shortener monitoring
+# Docs: https://prometheus.io/docs/prometheus/latest/configuration/
+
+global:
+  scrape_interval: 15s        # Scrape targets every 15 seconds
+  evaluation_interval: 15s    # Evaluate alert rules every 15 seconds
+
+# Load alert rules from this file
+rule_files:
+  - "alert_rules.yml"
+
+# Send alerts to Alertmanager
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - "alertmanager:9093"
+
+# Scrape the FastAPI app for metrics
+scrape_configs:
+  - job_name: "app"
+    metrics_path: "/metrics"
+    static_configs:
+      - targets:
+          - "app:8000"
+        labels:
+          environment: "hackathon"

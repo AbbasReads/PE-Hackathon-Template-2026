@@ -1,0 +1,75 @@
+# Alertmanager configuration
+# Docs: https://prometheus.io/docs/alerting/latest/configuration/
+#
+# HOW TO CONFIGURE:
+#   1. Set SLACK_WEBHOOK_URL in your .env file
+#   2. For Slack: use a normal Slack Incoming Webhook URL
+#   3. For Discord: use your Discord webhook URL + "/slack" suffix
+#      Example: https://discord.com/api/webhooks/XXXX/YYYY/slack
+
+global:
+  resolve_timeout: 5m
+
+# Notification channels
+receivers:
+  # Critical alerts → wake up the on-call engineer
+  - name: "oncall-slack"
+    slack_configs:
+      - api_url: "SLACK_WEBHOOK_URL_PLACEHOLDER"  # Replaced by env var at runtime — see docker-compose.yml
+        channel: "#oncall"
+        title: '{{ .CommonAnnotations.summary }}'
+        text: '{{ .CommonAnnotations.description }}'
+        send_resolved: true
+    discord_configs:
+      - webhook_url: "DISCORD_WEBHOOK_URL_PLACEHOLDER"
+        title: '{{ .CommonAnnotations.summary }}'
+        message: '{{ .CommonAnnotations.description }}'
+        send_resolved: true
+
+  # Warning alerts → informational, no wake-up
+  - name: "warnings-slack"
+    slack_configs:
+      - api_url: "SLACK_WEBHOOK_URL_PLACEHOLDER"
+        channel: "#warnings"
+        title: '{{ .CommonAnnotations.summary }}'
+        text: '{{ .CommonAnnotations.description }}'
+        send_resolved: true
+    discord_configs:
+      - webhook_url: "DISCORD_WEBHOOK_URL_PLACEHOLDER"
+        title: '{{ .CommonAnnotations.summary }}'
+        message: '{{ .CommonAnnotations.description }}'
+        send_resolved: true
+
+  # Fallback if nothing matches
+  - name: "null"
+
+# Routing tree
+route:
+  receiver: "null"
+  group_by: ["alertname", "instance"]
+  group_wait: 30s          # Wait 30s to batch related alerts
+  group_interval: 5m       # Wait 5m before sending new alerts in the same group
+  repeat_interval: 4h      # Don't re-notify for the same alert for 4 hours
+
+  routes:
+    # Critical alerts → page the on-call
+    - receiver: "oncall-slack"
+      matchers:
+        - severity="critical"
+      continue: false
+
+    # Warning alerts → informational channel
+    - receiver: "warnings-slack"
+      matchers:
+        - severity="warning"
+      continue: false
+
+# Inhibition rules — reduce alert fatigue
+inhibit_rules:
+  # If ServiceDown is firing, suppress HighErrorRate (obviously errors spike
+  # when the service is down — no need to double-page)
+  - source_matchers:
+      - alertname="ServiceDown"
+    target_matchers:
+      - alertname="HighErrorRate"
+    equal: ["instance"]

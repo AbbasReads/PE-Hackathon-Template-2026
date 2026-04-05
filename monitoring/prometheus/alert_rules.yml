@@ -1,0 +1,51 @@
+# Alert rules for the URL Shortener
+# These rules are evaluated by Prometheus every 15 seconds.
+
+groups:
+  - name: app_alerts
+    rules:
+
+      # ---------------------------------------------------------------
+      # CRITICAL: Service is completely unreachable
+      # Fires if Prometheus cannot scrape the app for 2 minutes.
+      # ---------------------------------------------------------------
+      - alert: ServiceDown
+        expr: up{job="app"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "  Service DOWN — {{ $labels.instance }}"
+          description: "The app has been unreachable for more than 2 minutes. Immediate action required."
+
+      # ---------------------------------------------------------------
+      # CRITICAL: Too many HTTP 5xx errors
+      # Fires if >5% of requests return 5xx for 5 minutes.
+      # Uses safe division (> 0 guard) to avoid NaN when no traffic.
+      # ---------------------------------------------------------------
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m]))
+            /
+            (sum(rate(http_requests_total[5m])) > 0)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "🚨 High error rate — {{ $value | humanizePercentage }} of requests failing"
+          description: "More than 5% of HTTP requests returned 5xx errors over the last 5 minutes."
+
+      # ---------------------------------------------------------------
+      # WARNING: CPU too hot (no wake-up, just awareness)
+      # Fires if host CPU exceeds 90% for 2 minutes.
+      # ---------------------------------------------------------------
+      - alert: HighCPU
+        expr: process_cpu_usage_percent > 90
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "⚠️ High CPU usage — {{ $value }}%"
+          description: "CPU usage has been above 90% for more than 2 minutes."
