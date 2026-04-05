@@ -16,10 +16,36 @@ export const options = {
     },
 };
 
-const BASE_URL = 'http://localhost:8000';
+const BASE_URL = __ENV.BASE_URL || 'http://localhost:8000';
+const USER_COUNT = 400;
 
 function randInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+export function setup() {
+    for (let i = 1; i <= USER_COUNT; i++) {
+        http.post(
+            `${BASE_URL}/users`,
+            JSON.stringify({
+                username: `k6-user-${i}`,
+                email: `k6-user-${i}@example.com`,
+            }),
+            { headers: { 'Content-Type': 'application/json' } },
+        );
+    }
+
+    for (let i = 1; i <= 100; i++) {
+        http.post(
+            `${BASE_URL}/urls`,
+            JSON.stringify({
+                user_id: randInt(1, USER_COUNT),
+                original_url: `https://example.com/seed-${i}`,
+                title: `Seed URL ${i}`,
+            }),
+            { headers: { 'Content-Type': 'application/json' } },
+        );
+    }
 }
 
 // ── 1. URLs Endpoints (Heaviest reads & main business logic) ───
@@ -39,7 +65,7 @@ function getUrl() {
 // 5% of traffic: Create URL
 function createUrl() {
     const payload = JSON.stringify({
-        user_id: randInt(1, 400),
+        user_id: randInt(1, USER_COUNT),
         original_url: `https://example.com/test_${Date.now()}`,
         title: `Load Test URL ${Date.now()}`,
     });
@@ -67,7 +93,7 @@ function listUsers() {
 
 // 8% of traffic: Single user lookup
 function getUser() {
-    const res = http.get(`${BASE_URL}/users/${randInt(1, 400)}`);
+    const res = http.get(`${BASE_URL}/users/${randInt(1, USER_COUNT)}`);
     check(res, { 'GET /users/<id> -> 200': (r) => r.status === 200 });
 }
 

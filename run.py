@@ -2,7 +2,6 @@ import csv
 import json
 import logging
 import os
-import threading
 import time
 from pathlib import Path
 
@@ -18,12 +17,10 @@ from app.database import Base, SessionLocal, engine
 from app.models.domain import Event, URL, User
 from app.observability import get_system_metrics, setup_logging
 
-# Initialize app and logging
 app = create_app()
 log_file_path = setup_logging()
 logger = logging.getLogger("app")
 
-# Prometheus instrumentation (optional setup)
 try:
     from prometheus_fastapi_instrumentator import Instrumentator
     from prometheus_client import Gauge
@@ -38,20 +35,15 @@ try:
         excluded_handlers=["/metrics", "/health"],
     ).instrument(app).expose(app, include_in_schema=True, tags=["observability"])
 
-    # Background thread to update CPU metrics without blocking requests
-    _last_cpu_percent = 0.0
-    def _update_cpu_gauge():
-        global _last_cpu_percent
-        psutil.cpu_percent(interval=None) # Initialize
-        while True:
-            time.sleep(1)
-            _last_cpu_percent = psutil.cpu_percent(interval=None)
-            cpu_usage_gauge.set(_last_cpu_percent)
-    
-    threading.Thread(target=_update_cpu_gauge, daemon=True).start()
-
 except ImportError:
     logger.warning("Prometheus metrics dependencies not found. Skipping instrumentation.")
+
+
+@app.middleware("http")
+async def request_metrics_middleware(request: Request, call_next):
+    if "cpu_usage_gauge" in globals():
+        cpu_usage_gauge.set(psutil.cpu_percent(interval=None))
+    return await call_next(request)
 
 @app.get("/metrics/json", tags=["observability"])
 def metrics_json():
@@ -137,7 +129,9 @@ def startup() -> None:
         )
 
 if __name__ == "__main__":
-    # Optimize worker count for a balance of concurrency and context-switching
-    # 4 workers per replica is standard for most 16-core hosts under high load
-    uvicorn.run("run:app", host="0.0.0.0", port=8000, workers=4, access_log=False)
-
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", "8000")),
+        access_log=False,
+    )
