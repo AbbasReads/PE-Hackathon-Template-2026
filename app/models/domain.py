@@ -14,7 +14,7 @@ class URL(Base):
     __tablename__ = "urls"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(Integer, ForeignKey("users.id"), index=True)
     short_code = Column(String, unique=True, index=True)
     original_url = Column(String)
     title = Column(String)

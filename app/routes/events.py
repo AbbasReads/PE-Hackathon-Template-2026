@@ -8,5 +8,5 @@ from typing import List
 router = APIRouter(prefix="/events", tags=["events"])
 
 @router.get("", response_model=List[EventOut])
-def get_events(db: Session = Depends(get_db)):
-    return db.query(Event).all()
+def get_events(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    return db.query(Event).order_by(Event.id).offset(skip).limit(limit).all()

@@ -1,18 +1,20 @@
 import uvicorn
 from fastapi import FastAPI
+from fastapi.responses import ORJSONResponse
 from app.database import Base, engine, SessionLocal
 from app.routes import users, urls, events
 from app.models.domain import User, URL, Event
 import csv
 import json
 
-app = FastAPI(title="Hackathon URL Shortener")
+app = FastAPI(title="Hackathon URL Shortener", default_response_class=ORJSONResponse)
 
 Base.metadata.create_all(bind=engine)
 
 app.include_router(users.router)
 app.include_router(urls.router)
 app.include_router(events.router)
+
 
 def seed_database():
     db = SessionLocal()
@@ -55,4 +57,4 @@ def seed_database():
 seed_database()
 
 if __name__ == "__main__":
-    uvicorn.run("run:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("run:app", host="0.0.0.0", port=8000, workers=4)

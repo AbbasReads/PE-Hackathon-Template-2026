@@ -1,15 +1,25 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.models.domain import URL, User, Event
 from app.models.schemas import URLCreate, URLOut, URLUpdate
 from app.utils import generate_short_code
 from typing import List, Optional
 
+
+def _log_event(url_id: int, user_id: int, event_type: str, details: dict):
+    """Background task: logs an event without blocking the response."""
+    db = SessionLocal()
+    try:
+        db.add(Event(url_id=url_id, user_id=user_id, event_type=event_type, details=details))
+        db.commit()
+    finally:
+        db.close()
+
 router = APIRouter(prefix="/urls", tags=["urls"])
 
 @router.post("", response_model=URLOut, status_code=status.HTTP_201_CREATED)
-def create_url(url: URLCreate, db: Session = Depends(get_db)):
+def create_url(url: URLCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == url.user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -26,24 +36,21 @@ def create_url(url: URLCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_url)
     
-    # Trigger Event
-    db_event = Event(
-        url_id=db_url.id,
-        user_id=url.user_id,
+    # Offload event logging to background — return response instantly
+    background_tasks.add_task(
+        _log_event, url_id=db_url.id, user_id=url.user_id,
         event_type="created",
         details={"short_code": short_code, "original_url": url.original_url}
     )
-    db.add(db_event)
-    db.commit()
     
     return db_url
 
 @router.get("", response_model=List[URLOut])
-def get_urls(user_id: Optional[int] = None, db: Session = Depends(get_db)):
+def get_urls(skip: int = 0, limit: int = 100, user_id: Optional[int] = None, db: Session = Depends(get_db)):
     query = db.query(URL)
     if user_id is not None:
         query = query.filter(URL.user_id == user_id)
-    return query.all()
+    return query.order_by(URL.id).offset(skip).limit(limit).all()
 
 @router.get("/{id}", response_model=URLOut)
 def get_url(id: int, db: Session = Depends(get_db)):
@@ -53,7 +60,7 @@ def get_url(id: int, db: Session = Depends(get_db)):
     return url
 
 @router.put("/{id}", response_model=URLOut)
-def update_url(id: int, url_update: URLUpdate, db: Session = Depends(get_db)):
+def update_url(id: int, url_update: URLUpdate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     db_url = db.query(URL).filter(URL.id == id).first()
     if not db_url:
         raise HTTPException(status_code=404, detail="URL not found")
@@ -66,14 +73,11 @@ def update_url(id: int, url_update: URLUpdate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_url)
     
-    # Trigger Event
-    db_event = Event(
-        url_id=db_url.id,
-        user_id=db_url.user_id,
+    # Offload event logging to background
+    background_tasks.add_task(
+        _log_event, url_id=db_url.id, user_id=db_url.user_id,
         event_type="updated",
         details={"short_code": db_url.short_code, "original_url": db_url.original_url}
     )
-    db.add(db_event)
-    db.commit()
     
     return db_url
