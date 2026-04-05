@@ -3,33 +3,33 @@ groups:
     rules:
       - alert: AppInstanceDown
         expr: up{job="url-shortener-apps"} == 0
-        for: 2m
+        for: 5s
         labels:
           severity: warning
           service: url-shortener
         annotations:
           summary: "Replica down: {{ $labels.instance }}"
-          description: "One application replica has been unreachable for more than 2 minutes."
+          description: "One application replica has been unreachable for more than 5 seconds."
 
       - alert: ServiceFleetDown
         expr: sum(up{job="url-shortener-apps"}) == 0
-        for: 1m
+        for: 5s
         labels:
           severity: critical
           service: url-shortener
         annotations:
           summary: "All app replicas are down"
-          description: "Prometheus cannot reach any FastAPI replica behind the load balancer."
+          description: "Prometheus cannot reach any FastAPI replica behind the load balancer for more than 5 seconds."
 
       - alert: LoadBalancerDown
         expr: up{job="url-shortener-lb"} == 0
-        for: 1m
+        for: 5s
         labels:
           severity: critical
           service: url-shortener-lb
         annotations:
           summary: "Load balancer is down"
-          description: "The Nginx entrypoint is unreachable, so external traffic cannot enter the service."
+          description: "The Nginx entrypoint is unreachable for more than 5 seconds, so external traffic cannot enter the service."
 
       - alert: HighErrorRate
         expr: |
@@ -37,35 +37,35 @@ groups:
             sum(rate(http_requests_total{job="url-shortener-apps",status=~"5.."}[5m]))
             /
             clamp_min(sum(rate(http_requests_total{job="url-shortener-apps"}[5m])), 1)
-          ) > 0.05
-        for: 5m
+          ) > 0.03
+        for: 5s
         labels:
           severity: critical
           service: url-shortener
         annotations:
           summary: "High 5xx error rate across the fleet"
-          description: "More than 5% of requests across app-1/app-2/app-3 returned 5xx responses over the last 5 minutes."
+          description: "More than 3% of requests across app-1/app-2/app-3 returned 5xx responses and persisted for more than 5 seconds."
 
       - alert: HighLatencyP95
         expr: |
           histogram_quantile(
             0.95,
             sum by (le) (rate(http_request_duration_seconds_bucket{job="url-shortener-apps"}[5m]))
-          ) > 3
-        for: 5m
+          ) > 2
+        for: 5s
         labels:
           severity: warning
           service: url-shortener
         annotations:
-          summary: "p95 latency is above 3 seconds"
-          description: "The fleet-wide p95 latency has exceeded the Silver scalability target for more than 5 minutes."
+          summary: "p95 latency is above 2 seconds"
+          description: "The fleet-wide p95 latency has exceeded the Silver scalability target for more than 5 seconds."
 
       - alert: HighCPUReplica
-        expr: process_cpu_usage_percent{job="url-shortener-apps"} > 90
-        for: 2m
+        expr: process_cpu_usage_percent{job="url-shortener-apps"} > 80
+        for: 5s
         labels:
           severity: warning
           service: url-shortener
         annotations:
           summary: "High CPU on {{ $labels.instance }}"
-          description: "One app replica has sustained CPU usage above 90% for more than 2 minutes."
+          description: "One app replica has sustained CPU usage above 80% for more than 5 seconds."

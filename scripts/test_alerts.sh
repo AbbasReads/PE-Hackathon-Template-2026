@@ -37,13 +37,13 @@ check_alerts() {
 test_service_down() {
     info "=== Testing ServiceDown Alert ==="
     info "Stopping the app container..."
-    docker compose stop app
+    docker compose stop app-1 app-2 app-3
     info "App stopped. Waiting 3 minutes for alert to fire..."
     info "Check Prometheus alerts at: ${PROMETHEUS_URL}/alerts"
     sleep 180
     check_alerts
     echo ""
-    warn "Don't forget to restart the app: docker compose start app"
+    warn "Don't forget to restart the app: docker compose start app-1 app-2 app-3"
 }
 
 # ---------------------------------------------------------------
